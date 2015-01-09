@@ -5,8 +5,8 @@ var _ = require('lodash');
 var jar = request.jar();
 
 var credentials = {
-	username: 'username',
-	password: 'password'
+	username: process.env.username,
+	password: process.env.password
 };
 
 var url = 'https://rk.inst.dk/Login.aspx?ReturnUrl=%2fUser%2fEntryPoint.aspx';
