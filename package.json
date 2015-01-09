@@ -1,0 +1,13 @@
+{
+  "name": "instainst",
+  "version": "0.0.0",
+  "description": "Log into boerneintra and retrieve dagssedler",
+  "main": "crawl.js",
+  "repository": "",
+  "author": "Brian Frisch <brian.frisch@gmail.com>",
+  "dependencies": {
+    "request": "2.51.0",
+    "cheerio": "0.18.0",
+    "lodash": "2.4.1"
+  }
+}
