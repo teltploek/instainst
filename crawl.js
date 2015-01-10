@@ -1,8 +1,18 @@
+var fs = require('fs');
+var path = require('path');
 var request = require('request');
 var cheerio = require('cheerio');
 var _ = require('lodash');
 
+// init cookie jar so we store cookies to be able to login
 var jar = request.jar();
+
+// hardcoded categories that I'm interested in
+var categories = {
+    'uglerne'       : 21597,
+    'humlebierne'   : 4740,
+    'lærkerne'      : 1613
+};
 
 var credentials = {
 	username: process.env.username,
@@ -52,12 +62,31 @@ var getFrontPage = function (callback) {
 	}, callback);
 }
 
-var getListPage = function (callback) {
+var getListPages = function (callback) {
+   _.forEach(categories, function(key, val) {
+       console.log(key, val)
+       getListPage(key, val, callback);
+   });
+};
+
+var getListPage = function (label, category, callback) {
     request({
-        url : 'https://rk.inst.dk/Document/CustomList.aspx?Location=FI.B&container=21597&s=Title&af=0&archF=0&pg=1&pgSize=15&ctx=p',
+        url : 'https://rk.inst.dk/Document/CustomList.aspx?Location=FI.B&container='+category+'&s=Title&af=0&archF=0&pg=1&pgSize=1000&ctx=p',
         jar: jar
     }, callback);
-}
+};
+
+var processEntry = function(row) {
+    //console.log(category);
+    
+    var $ = cheerio.load(row);
+    console.log($('.modified').text());
+    
+    if (!fs.existsSync('./entries')) {
+        fs.mkdir('./entries')
+    };
+};
+
 
 // step 1 - retrieving form info
 collectFormAttributes(function(err,res,body){
@@ -72,11 +101,6 @@ collectFormAttributes(function(err,res,body){
     // step 2 - posting login information
     login(formAttributes, function(err, res, body){
         // debug : console.log(jar.getCookieString('https://rk.inst.dk'));
-        
-    	if(err) {
-    		callback.call(null, new Error('Login failed'));
-    		return;
-    	}
     
         // step 3 - redirect to intermediate step
     	redirect(function(err, res, body) {
@@ -95,7 +119,7 @@ collectFormAttributes(function(err,res,body){
             //     		console.log(text);
             //     	});
     
-            getListPage(function(err, res, body) {
+            getListPages(function(err, res, body) {
                 var $ = cheerio.load(body);
                 var text = $('title').text();
         		
@@ -104,10 +128,7 @@ collectFormAttributes(function(err,res,body){
                 var tbl = $('.grid_view');
          		var rows = $('.grid_view tr:not(.pager,.thead)');
          		
-         		_.forEach(rows, function(row) {
-         		    var $ = cheerio.load(row);
-         		    console.log($('.modified').text());
-         		});
+         		_.forEach(rows, processEntry);
             });
     		
     		

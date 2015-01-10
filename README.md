@@ -1,9 +1,16 @@
 # Instainst
 
-This repo is a personal project.
+I often forget to read up on the daily updates from my kids institution.
 
-I want to be able to retrieve daily updates from my kids institution, and present it in a way I see fit.
+Probably because the login procedure is tedious and the UI incredible boring.
 
-This system will crawl the posts, store them and eventually present them in an accessible way.
+This system will crawl and retrieve the entries from the categories I'm interested in, and make them available to me automatically on a daily basis.
 
-So it's a 100% personal project but feel free to grab anything that would be of any use to you.
+So it's a 100% personal project, and right now a hardcoded can of worms, but feel free to grab anything that would be of any use to you.
+
+## Usage (mostly a note to self thing at this point)
+
+To be able to login you'll need to pass in a username and a password in the ENV variables
+
+* `process.env.username` - username for the login screen
+* `process.env.password` - password for the login screen
