@@ -1,8 +1,14 @@
 var fs = require('fs');
 var path = require('path');
+var u = require('url');
 var request = require('request');
+var sync_request = require('sync-request');
 var cheerio = require('cheerio');
 var _ = require('lodash');
+var nodemailer = require('nodemailer');
+var mkdirp = require('mkdirp');
+var jade = require('jade');
+var Q = require('q');
 
 // init cookie jar so we store cookies to be able to login
 var jar = request.jar();
@@ -43,7 +49,7 @@ var login = function (formAttributes, callback) {
       	}
     }, 
     
-    callback)
+    callback);
 };
 
 // do required intermediate redirection
@@ -52,7 +58,7 @@ var redirect = function (callback) {
         url : 'https://rk.inst.dk/User/EntryPoint.aspx?Location=IP.B', 
         jar: jar
     }, callback);
-}
+};
 
 // show front page
 var getFrontPage = function (callback) {
@@ -60,31 +66,102 @@ var getFrontPage = function (callback) {
 	    url : 'https://rk.inst.dk/Foresides/IntraForeside.aspx?Location=FI.B&t=person', 
 	    jar: jar
 	}, callback);
-}
+};
 
 var getListPages = function (callback) {
-   _.forEach(categories, function(key, val) {
-       console.log(key, val)
-       getListPage(key, val, callback);
+   _.forEach(categories, function(category, label) {
+       getListPage(category, label, callback);
    });
 };
 
-var getListPage = function (label, category, callback) {
+var getListPage = function (category, label, callback) {
     request({
         url : 'https://rk.inst.dk/Document/CustomList.aspx?Location=FI.B&container='+category+'&s=Title&af=0&archF=0&pg=1&pgSize=1000&ctx=p',
         jar: jar
-    }, callback);
+    }, function(err, res, body) {
+        callback(category, label, err, res, body);
+    });
 };
 
-var processEntry = function(row) {
-    //console.log(category);
-    
+var processEntry = function(category, label, row) {
     var $ = cheerio.load(row);
-    console.log($('.modified').text());
     
-    if (!fs.existsSync('./entries')) {
-        fs.mkdir('./entries')
-    };
+    var date = $('.modified').text();
+    
+    var url = u.resolve('https://rk.inst.dk', $('a').attr('href'));
+
+    var dest = path.join('./entries', label, date);
+    var filename = path.join(dest, $('a').attr('title'));
+    
+    if (!fs.existsSync(dest)) {
+        mkdirp.sync(dest);
+    }
+    
+    if (!fs.existsSync(filename)) {
+        request({
+            url : url,
+            jar : jar
+        }, function (err, res, body) {
+            
+            var $ = cheerio.load(body);
+            var paragraphs = $('p');
+            
+            var textblocks = [];
+            var convertedImages = [];
+            
+            function retrieveContent() {
+                var deferreds = [];
+                
+                _.forEach(paragraphs, function(paragraph) {
+                    var $ = cheerio.load(paragraph);
+                    var imgs = $('img');
+                   
+                    if (imgs.length) {
+                        _.forEach(imgs, function (img) {
+                            var deferred = Q.defer();
+                            var $ = cheerio.load(img);
+                            var imageUrl = $('img').attr('src');
+                    
+                            request({
+                        	    url : imageUrl, 
+                        	}, function (err, res, body) {
+                        	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
+                            
+                        	   convertedImages.push(data);
+                        	   
+                        	   deferred.resolve(data);
+                        	});
+                        	
+                        	deferreds.push(deferred.promise);
+                        });
+                    }else{
+                       textblocks.push($('p').text());
+                    }
+                });
+                
+                return Q.all(deferreds);
+            }
+            
+            retrieveContent().then(function(){
+                // Compile a function
+                var fn = jade.compileFile('./mail-tpl.jade');
+    
+                // Render the function
+                var html = fn({
+                    textblocks  : textblocks,
+                    images      : convertedImages
+                });
+               
+                fs.writeFile(filename, html, function(err) {
+                    if(err) {
+                        console.log(err);
+                    } else {
+                        console.log(filename, 'was saved!');
+                    }
+                });
+            });
+        });
+    }
 };
 
 
@@ -92,7 +169,7 @@ var processEntry = function(row) {
 collectFormAttributes(function(err,res,body){
     var $ = cheerio.load(body);
     
-    formAttributes = {
+    var formAttributes = {
         viewstate               : $('input[name="__VIEWSTATE"]').val(),
         viewstategenerator      : $('input[name="__VIEWSTATEGENERATOR"]').val(),
         eventvalidation         : $('input[name="__EVENTVALIDATION"]').val()
@@ -119,19 +196,37 @@ collectFormAttributes(function(err,res,body){
             //     		console.log(text);
             //     	});
     
-            getListPages(function(err, res, body) {
+            getListPages(function(category, label, err, res, body) {
                 var $ = cheerio.load(body);
-                var text = $('title').text();
-        		
-        		console.log(text);
-        		console.log('----------------');
-                var tbl = $('.grid_view');
+                
          		var rows = $('.grid_view tr:not(.pager,.thead)');
-         		
-         		_.forEach(rows, processEntry);
+         		_.forEach(rows, function(row) {
+         		    processEntry(category, label, row);
+         		});
             });
     		
     		
     	});
     });
 });
+
+// var smtpTransport = nodemailer.createTransport("SMTP",{
+//   service: "Gmail",
+//   auth: {
+//       user: "boerneintra@gmail.com",
+//       pass: ""
+//   }
+// });
+
+// smtpTransport.sendMail({
+//   from: "Børneintra <boerneintra@gmail.com>", // sender address
+//   to: "Brian Frisch <brian.frisch@gmail.com>", // comma separated list of receivers
+//   subject: "Huh? ✔", // Subject line
+//   text: "Hello world ✔" // plaintext body
+// }, function(error, response){
+//   if(error){
+//       console.log(error);
+//   }else{
+//       console.log("Message sent: " + response.message);
+//   }
+// });
