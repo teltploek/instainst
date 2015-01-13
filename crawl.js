@@ -1,5 +1,6 @@
 var fs = require('fs');
 var path = require('path');
+var http = require('http');
 var u = require('url');
 var request = require('request');
 var sync_request = require('sync-request');
@@ -120,17 +121,47 @@ var processEntry = function(category, label, row) {
                         _.forEach(imgs, function (img) {
                             var deferred = Q.defer();
                             var $ = cheerio.load(img);
-                            var imageUrl = $('img').attr('src');
-                    
-                            request({
-                        	    url : imageUrl, 
-                        	}, function (err, res, body) {
-                        	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
+                            var imageUrl = $('img').attr('src').replace('https:', 'http:');
+                            console.log(imageUrl);
                             
-                        	   convertedImages.push(data);
+                            var req = http.request({
+                                host: 'rk.inst.dk',
+                                path: '/DOK.vdir/shared/220badb1-7687-4239-8520-f8b726567e82.jpg'
+                            }, function(res){
+                                var imagedata = '';
+                                //res.setEncoding('binary');
+                            
+                                res.on('data', function(chunk){
+                                    imagedata += chunk;
+                                });
+                            
+                                res.on('end', function(){
+                                    console.log(imagedata);
+                                    var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(imagedata).toString('base64');
+                            
+                            	    convertedImages.push(data);
+                            	   
+                            	    deferred.resolve(data);
+                                });
+                            });
+                            
+                            req.end();
+                            
+                        //     request({
+                        // 	    url : imageUrl,
+                        // 	    encoding: null,
+                        // 	    headers: {
+                        // 	        'Accept' : 'image/*',
+                        // 	        'Content-Type' : 'image/*'
+                        // 	    }
+                        // 	}, function (err, res, body) {
+                        // 	   console.log(res.headers['content-type']);
+                        // 	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
+                            
+                        // 	   convertedImages.push(data);
                         	   
-                        	   deferred.resolve(data);
-                        	});
+                        // 	   deferred.resolve(data);
+                        // 	});
                         	
                         	deferreds.push(deferred.promise);
                         });
