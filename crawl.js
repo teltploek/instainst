@@ -18,7 +18,7 @@ var jar = request.jar();
 var categories = {
     'uglerne'       : 21597,
     'humlebierne'   : 4740,
-    'lærkerne'      : 1613
+    'laerkerne'      : 1613
 };
 
 var credentials = {
@@ -103,12 +103,13 @@ var processEntry = function(category, label, row) {
             url : url,
             jar : jar
         }, function (err, res, body) {
-            
             var $ = cheerio.load(body);
             var paragraphs = $('p');
             
+            var txt = '';
             var textblocks = [];
             var convertedImages = [];
+            var imageUrls = [];
             
             function retrieveContent() {
                 var deferreds = [];
@@ -122,51 +123,32 @@ var processEntry = function(category, label, row) {
                             var deferred = Q.defer();
                             var $ = cheerio.load(img);
                             var imageUrl = $('img').attr('src').replace('https:', 'http:');
-                            console.log(imageUrl);
                             
-                            var req = http.request({
-                                host: 'rk.inst.dk',
-                                path: '/DOK.vdir/shared/220badb1-7687-4239-8520-f8b726567e82.jpg'
-                            }, function(res){
-                                var imagedata = '';
-                                //res.setEncoding('binary');
+                            imageUrls.push(imageUrl);
                             
-                                res.on('data', function(chunk){
-                                    imagedata += chunk;
-                                });
-                            
-                                res.on('end', function(){
-                                    console.log(imagedata);
-                                    var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(imagedata).toString('base64');
-                            
-                            	    convertedImages.push(data);
+                            //     request({
+                            // 	    url : imageUrl,
+                            // 	    encoding: null
+                            // 	}, function (err, res, body) {
+                            // 	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
+                                
+                            // 	   convertedImages.push(data);
                             	   
-                            	    deferred.resolve(data);
-                                });
-                            });
+                            // 	   deferred.resolve(data);
+                            // 	});
                             
-                            req.end();
-                            
-                        //     request({
-                        // 	    url : imageUrl,
-                        // 	    encoding: null,
-                        // 	    headers: {
-                        // 	        'Accept' : 'image/*',
-                        // 	        'Content-Type' : 'image/*'
-                        // 	    }
-                        // 	}, function (err, res, body) {
-                        // 	   console.log(res.headers['content-type']);
-                        // 	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
-                            
-                        // 	   convertedImages.push(data);
-                        	   
-                        // 	   deferred.resolve(data);
-                        // 	});
+                            // Until we figure out how to fetch the images, we will just resolve promises immediately
+                            deferred.resolve();
                         	
                         	deferreds.push(deferred.promise);
                         });
                     }else{
-                       textblocks.push($('p').text());
+                        txt = $('p').text().replace(/ /gm,'');
+                        txt = txt.replace(/(\r\n|\n|\r)/gm,'');
+                        
+                        if (txt !== '') {
+                            textblocks.push(txt);
+                        }
                     }
                 });
                 
@@ -175,12 +157,13 @@ var processEntry = function(category, label, row) {
             
             retrieveContent().then(function(){
                 // Compile a function
-                var fn = jade.compileFile('./mail-tpl.jade');
+                var fn = jade.compileFile('./mail-tpl.jade', { pretty : true });
     
                 // Render the function
                 var html = fn({
                     textblocks  : textblocks,
-                    images      : convertedImages
+                    images      : convertedImages,
+                    imageUrls   : imageUrls
                 });
                
                 fs.writeFile(filename, html, function(err) {
@@ -215,17 +198,6 @@ collectFormAttributes(function(err,res,body){
     		// debug : console.log(jar.getCookieString('https://rk.inst.dk'));
     		
     		// step 4 - get some data to work on
-            // 		getFrontPage(function(err, res, body) {
-            //     		if(err) {
-            //     			callback.call(null, new Error('Request failed'));
-            //     			return;
-            //     		}
-                
-            //     		var $ = cheerio.load(body);
-            //     		var text = $('title').text();
-                		
-            //     		console.log(text);
-            //     	});
     
             getListPages(function(category, label, err, res, body) {
                 var $ = cheerio.load(body);
