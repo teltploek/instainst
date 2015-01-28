@@ -2,7 +2,7 @@
   "name": "instainst",
   "version": "0.0.0",
   "description": "Retrieve dagssedler from boerneintra and present them ",
-  "main": "crawl.js",
+  "main": "begin.js",
   "repository": "",
   "author": "Brian Frisch <brian.frisch@gmail.com>",
   "dependencies": {

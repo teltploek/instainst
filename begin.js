@@ -15,7 +15,6 @@ var credentials = {
 	username: process.env.username,
 	password: process.env.password
 };
-console.log(credentials);
 
 function Inst (options) {
     // init cookie jar so we store cookies to be able to login
@@ -27,7 +26,6 @@ function Inst (options) {
 };
 
 Inst.prototype.getLoginPage = function () {
-    console.log('getLoginPage');
     var url = 'https://rk.inst.dk/Login.aspx?ReturnUrl=%2fUser%2fEntryPoint.aspx';
     var deferred = Q.defer();
     
@@ -39,7 +37,6 @@ Inst.prototype.getLoginPage = function () {
 };
 
 Inst.prototype.collectFormAttributes = function (promise) {
-    console.log('collectFormAttributes');
     var $ = cheerio.load(promise.body);
     
     this.formAttributes = {
@@ -50,7 +47,6 @@ Inst.prototype.collectFormAttributes = function (promise) {
 };
 
 Inst.prototype.login = function () {
-    console.log('login');
     var url = 'https://rk.inst.dk/Login.aspx?ReturnUrl=%2fUser%2fEntryPoint.aspx';
     var deferred = Q.defer();
     
@@ -74,7 +70,6 @@ Inst.prototype.login = function () {
 
 // do required intermediate redirection
 Inst.prototype.redirect = function (promise) {
-    console.log('redirect');
     var deferred = Q.defer();
     
     request({
@@ -88,7 +83,6 @@ Inst.prototype.redirect = function (promise) {
 };
 
 Inst.prototype.getCategoryPages = function (promise) {
-    console.log('getCategoryPages');
     var self = this;
     var deferreds = [];
 
@@ -102,7 +96,6 @@ Inst.prototype.getCategoryPages = function (promise) {
 };
 
 Inst.prototype.getCategoryPage = function (category, label) {
-    console.log('getCategoryPage');
     var deferred = Q.defer();
     
     request({
@@ -116,8 +109,8 @@ Inst.prototype.getCategoryPage = function (category, label) {
 };
 
 Inst.prototype.parseCategoryPages = function (promises) {
-    console.log('parseCategoryPages');
     var self = this;
+    var deferreds = [];
     
     _.forEach(promises, function(promise) {
         var $ = cheerio.load(promise.body);
@@ -125,12 +118,20 @@ Inst.prototype.parseCategoryPages = function (promises) {
      	var rows = $('.grid_view tr:not(.pager,.thead)');
      	
      	_.forEach(rows, function(row) {
-     	    self.processCategory(promise.category, promise.label, row);
+     	    var parseCategoryPagePromise = self.processEntry(promise.category, promise.label, row);
+     	    
+     	    if (typeof parseCategoryPagePromise !== 'undefined') {
+     	        deferreds.push(parseCategoryPagePromise);
+     	    }
      	});
     });
+    
+    return Q.all(deferreds);
 };
 
-Inst.prototype.processCategory = function(category, label, row) {
+Inst.prototype.processEntry = function(category, label, row) {
+    var deferred;
+    
     var $ = cheerio.load(row);
     
     var date = $('.modified').text();
@@ -143,85 +144,81 @@ Inst.prototype.processCategory = function(category, label, row) {
     if (!fs.existsSync(dest)) {
         mkdirp.sync(dest);
     }
-    
-    if (!fs.existsSync(filename)) {
+
+    if ( !fs.existsSync(filename) ) {
+        deferred = Q.defer();
         request({
             url : url,
-            jar : jar
+            jar : this.jar
         }, function (err, res, body) {
-            var $ = cheerio.load(body);
-            var paragraphs = $('p');
-            
-            var txt = '';
-            var textblocks = [];
-            var convertedImages = [];
-            var imageUrls = [];
-            
-            function retrieveContent() {
-                var deferreds = [];
-                
-                _.forEach(paragraphs, function(paragraph) {
-                    var $ = cheerio.load(paragraph);
-                    var imgs = $('img');
-                   
-                    if (imgs.length) {
-                        _.forEach(imgs, function (img) {
-                            var deferred = Q.defer();
-                            var $ = cheerio.load(img);
-                            var imageUrl = $('img').attr('src').replace('https:', 'http:');
-                            
-                            imageUrls.push(imageUrl);
-                            
-                            //     request({
-                            // 	    url : imageUrl,
-                            // 	    encoding: null
-                            // 	}, function (err, res, body) {
-                            // 	   var data = 'data:' + res.headers['content-type'] + ';base64,' + new Buffer(body).toString('base64');
-                                
-                            // 	   convertedImages.push(data);
-                            	   
-                            // 	   deferred.resolve(data);
-                            // 	});
-                            
-                            // Until we figure out how to fetch the images, we will just resolve promises immediately
-                            deferred.resolve();
-                        	
-                        	deferreds.push(deferred.promise);
-                        });
-                    }else{
-                        txt = $('p').text().replace(/ /gm,'');
-                        txt = txt.replace(/(\r\n|\n|\r)/gm,'');
-                        
-                        if (txt !== '') {
-                            textblocks.push(txt);
-                        }
-                    }
-                });
-                
-                return Q.all(deferreds);
-            }
-            
-            retrieveContent().then(function(){
-                // Compile a function
-                var fn = jade.compileFile('./mail-tpl.jade', { pretty : true });
-    
-                // Render the function
-                var html = fn({
-                    textblocks  : textblocks,
-                    images      : convertedImages,
-                    imageUrls   : imageUrls
-                });
-               
-                fs.writeFile(filename, html, function(err) {
-                    if(err) {
-                        console.log(err);
-                    } else {
-                        console.log(filename, 'was saved!');
-                    }
-                });
-            });
+            deferred.resolve({ res : res, body : body, filename: filename });
         });
+        
+        return deferred.promise;
     }
+};
+
+Inst.prototype.writeFiles = function (promises) {
+    _.forEach(promises, function(promise) {
+        var $ = cheerio.load(promise.body);
+        var paragraphs = $('p');
+                
+        var filename = promise.filename;
+        var txt = '';
+        var textblocks = [];
+        var convertedImages = [];
+        var imageUrls = [];
+            
+        _.forEach(paragraphs, function(paragraph) {
+            var $ = cheerio.load(paragraph);
+            var imgs = $('img');
+           
+            if (imgs.length) {
+                _.forEach(imgs, function (img) {
+                    var deferred = Q.defer();
+                    var $ = cheerio.load(img);
+                    var imageUrl = $('img').attr('src').replace('https:', 'http:');
+                    
+                    imageUrls.push(imageUrl);
+                });
+            }else{
+                txt = $('p').text().replace(/ /gm,'');
+                txt = txt.replace(/(\r\n|\n|\r)/gm,'');
+                
+                if (txt !== '') {
+                    textblocks.push(txt);
+                }
+            }
+        });
+        
+        // Compile a function
+        var fn = jade.compileFile('./mail-tpl.jade', { pretty : true });
+    
+        // Render the function
+        var html = fn({
+            textblocks  : textblocks,
+            images      : convertedImages,
+            imageUrls   : imageUrls
+        });
+       
+        fs.writeFile(filename, html, function(err) {
+            if(err) {
+                console.log(err);
+            } else {
+                console.log(filename, 'was saved!');
+            }
+        });
+    });
+};
+
+Inst.prototype.init = function () {
+    Q.fcall( this.getLoginPage.bind(this) )
+        .then( this.collectFormAttributes.bind(this) )
+        .then( this.login.bind(this) )
+        .then( this.redirect.bind(this) )
+        .then( this.getCategoryPages.bind(this) )
+        .then( this.parseCategoryPages.bind(this) )
+        .then( this.writeFiles.bind(this) );
 };
 
 var inst = new Inst({ 
@@ -232,10 +229,4 @@ var inst = new Inst({
     }
 });
 
-Q.fcall( inst.getLoginPage.bind(inst) )
-    .then( inst.collectFormAttributes.bind(inst) )
-    .then( inst.login.bind(inst) )
-    .then( inst.redirect.bind(inst) )
-    .then( inst.getCategoryPages.bind(inst) )
-    .then( inst.parseCategoryPages.bind(inst) );
-    
+inst.init();

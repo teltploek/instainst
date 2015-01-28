@@ -18,7 +18,7 @@ var jar = request.jar();
 var categories = {
     'uglerne'       : 21597,
     'humlebierne'   : 4740,
-    'laerkerne'      : 1613
+    'laerkerne'     : 1613
 };
 
 var credentials = {
