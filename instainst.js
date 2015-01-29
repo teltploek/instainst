@@ -36,9 +36,9 @@ function Inst (options) {
     
     this.categories = options.categories || {};
     this.credentials = options.credentials || {};
-    this.recepients = options.recepients || {};
+    this.recipients = options.recipients || {};
     this.mailercredentials = options.mailercredentials || {};
-};
+}
 
 /**
  * run
@@ -287,8 +287,10 @@ Inst.prototype.processEntry = function(category, label, row) {
 
 Inst.prototype._writeFiles = function (promises) {
     var self = this;
+    var deferreds = [];
     
     _.forEach(promises, function(promise) {
+        var deferred = Q.defer();
         var $ = cheerio.load(promise.body);
         var paragraphs = $('p');
                 
@@ -333,15 +335,20 @@ Inst.prototype._writeFiles = function (promises) {
             subject : filename,
             content : html
         });
+        
+        deferreds.push(deferred.promise);
        
         fs.writeFile(filename, html, function(err) {
             if(err) {
                 console.log(err);
             } else {
+                deferred.resolve();
                 console.log(filename, 'was saved!');
             }
         });
     });
+    
+    return Q.all(deferreds);
 };
 
 /**
@@ -352,7 +359,7 @@ Inst.prototype._writeFiles = function (promises) {
  * @api private
  */
 Inst.prototype._sendMail = function () {
-    console.log('_sendMail');
+    var self = this;
     
     var smtpTransport = nodemailer.createTransport('SMTP', {
         service: 'Gmail',
@@ -361,22 +368,20 @@ Inst.prototype._sendMail = function () {
             pass: this.mailercredentials.password
         }
     });
-    
-    var self = this;
 
     _.forEach(this.newEntries, function (entry) {
         smtpTransport.sendMail({
-            from: _.template('Børneintra <%- email %>>')(self.mailercredentials), // sender address
-            to: self.recepients.join(','),
+            from: self.mailercredentials.email,
+            to: self.recipients.join(),
             subject: entry.subject,
-            text: entry.content
+            html: entry.content
         }, function(error, response){
             if(error){
                 console.log(error);
             }else{
                 console.log('Message sent: ', response.message);
             }
-        });  
+        });
     });  
 };
 
