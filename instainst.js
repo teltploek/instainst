@@ -59,8 +59,12 @@ Inst.prototype.run = function () {
         .then( this._parseCategoryPages.bind(this) )
         .then( this._writeFiles.bind(this) )
         .then( this._sendMail.bind(this) )
+        .done(function () {
+            console.log(
+                _.template('Instainst session completed. <%= entries %> new <%= pluralize %> was retrieved.')({ entries : this.newEntries.length, pluralize : this.newEntries.length === 1 ? 'entry' : 'entries' })
+            );
+        }.bind(this) );
 };
-
 
 /**
  * _getLoginPage

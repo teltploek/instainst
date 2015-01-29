@@ -14,3 +14,9 @@ To be able to login you'll need to pass in a username and a password in the ENV 
 
 * `process.env.username` - username for the login screen
 * `process.env.password` - password for the login screen
+* `process.env.mailerEmail` - e-mail address to send from (must be a gmail address)
+* `process.env.mailerPassword` - password for the mailer e-mail address
+* 
+## TODO
+
+Write docs for the options needed for the instainst module constructor.
