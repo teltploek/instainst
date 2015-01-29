@@ -32,8 +32,12 @@ function Inst (options) {
     
     this.formAttributes = {};
     
+    this.newEntries = [];
+    
     this.categories = options.categories || {};
     this.credentials = options.credentials || {};
+    this.recepients = options.recepients || {};
+    this.mailercredentials = options.mailercredentials || {};
 };
 
 /**
@@ -45,13 +49,16 @@ function Inst (options) {
  */
 
 Inst.prototype.run = function () {
+    this.newEntries = [];
+    
     Q.fcall( this._getLoginPage.bind(this) )
         .then( this._collectFormAttributes.bind(this) )
         .then( this.login.bind(this) )
         .then( this._redirect.bind(this) )
         .then( this.getCategoryPages.bind(this) )
         .then( this._parseCategoryPages.bind(this) )
-        .then( this._writeFiles.bind(this) );
+        .then( this._writeFiles.bind(this) )
+        .then( this._sendMail.bind(this) )
 };
 
 
@@ -279,6 +286,8 @@ Inst.prototype.processEntry = function(category, label, row) {
  */
 
 Inst.prototype._writeFiles = function (promises) {
+    var self = this;
+    
     _.forEach(promises, function(promise) {
         var $ = cheerio.load(promise.body);
         var paragraphs = $('p');
@@ -319,6 +328,11 @@ Inst.prototype._writeFiles = function (promises) {
             images      : convertedImages,
             imageUrls   : imageUrls
         });
+        
+        self.newEntries.push({
+            subject : filename,
+            content : html
+        });
        
         fs.writeFile(filename, html, function(err) {
             if(err) {
@@ -328,6 +342,42 @@ Inst.prototype._writeFiles = function (promises) {
             }
         });
     });
+};
+
+/**
+ * _sendMail
+ * 
+ * Send e-mail with new entries to recipients
+ * 
+ * @api private
+ */
+Inst.prototype._sendMail = function () {
+    console.log('_sendMail');
+    
+    var smtpTransport = nodemailer.createTransport('SMTP', {
+        service: 'Gmail',
+        auth: {
+            user: this.mailercredentials.email,
+            pass: this.mailercredentials.password
+        }
+    });
+    
+    var self = this;
+
+    _.forEach(this.newEntries, function (entry) {
+        smtpTransport.sendMail({
+            from: _.template('Børneintra <%- email %>>')(self.mailercredentials), // sender address
+            to: self.recepients.join(','),
+            subject: entry.subject,
+            text: entry.content
+        }, function(error, response){
+            if(error){
+                console.log(error);
+            }else{
+                console.log('Message sent: ', response.message);
+            }
+        });  
+    });  
 };
 
 /**
