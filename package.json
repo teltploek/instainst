@@ -5,6 +5,9 @@
   "main": "begin.js",
   "repository": "",
   "author": "Brian Frisch <brian.frisch@gmail.com>",
+  "scripts": {
+    "start": "node begin.js"
+  },
   "dependencies": {
     "request": "2.51.0",
     "cheerio": "0.18.0",
