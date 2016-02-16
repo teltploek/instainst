@@ -364,14 +364,8 @@ Inst.prototype._writeFiles = function (promises) {
  */
 Inst.prototype._sendMail = function () {
     var self = this;
-    
-    var smtpTransport = nodemailer.createTransport('SMTP', {
-        service: 'Gmail',
-        auth: {
-            user: this.mailercredentials.email,
-            pass: this.mailercredentials.password
-        }
-    });
+
+    var transporter = nodemailer.createTransport('smtps://'+this.mailercredentials.email+':'+this.mailercredentials.password+'@smtp.gmail.com');
 
     _.forEach(this.newEntries, function (entry) {
         smtpTransport.sendMail({

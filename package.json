@@ -12,7 +12,7 @@
     "request": "2.51.0",
     "cheerio": "0.18.0",
     "lodash": "2.4.1",
-    "nodemailer": "0.7.1",
+    "nodemailer": "2.1.0",
     "mkdirp" : "0.5.0",
     "sync-request": "1.0.2",
     "jade": "1.8.2",
