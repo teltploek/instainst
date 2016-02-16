@@ -11,13 +11,10 @@ var inst = new Instainst({
         password    : process.env.mailerPassword
     },
     recipients : [
-        'brian.frisch@gmail.com',
-        'tina.lindfors@gmail.com',
+        'brian.frisch@gmail.com'
     ],
     categories : {
-        'uglerne'       : 21597,
-        'humlebierne'   : 4740,
-        'laerkerne'     : 1613
+        'viberne'     : 1608
     },
     credentials : {
 	    username: process.env.username,
