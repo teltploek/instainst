@@ -368,7 +368,7 @@ Inst.prototype._sendMail = function () {
     var transporter = nodemailer.createTransport('smtps://'+this.mailercredentials.email+':'+this.mailercredentials.password+'@smtp.gmail.com');
 
     _.forEach(this.newEntries, function (entry) {
-        smtpTransport.sendMail({
+        transporter.sendMail({
             from: self.mailercredentials.email,
             to: self.recipients.join(),
             subject: entry.subject,
